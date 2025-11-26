@@ -215,12 +215,15 @@ Retrieve all request/response pairs (sorted by newest first).
 - [ ] Volume persistence for MongoDB data
 - [ ] Health checks in docker-compose.yml
 
-#### b) Cloud Hosting
-- Deploy to Azure App Service / AWS ECS / Google Cloud Run
-- Configure environment-specific settings
-- Set up CI/CD pipeline (GitHub Actions / Azure DevOps)
+#### b) Unit Tests
+- Create `ReverseSentence.Tests` project
+- Test coverage for:
+  - `ReverseService.ReverseWords()` - core logic
+  - Controller validation scenarios
+  - Repository MongoDB interactions (with Moq)
+- Target: >80% code coverage
 
-#### c) Swagger Configuration
+#### d) Swagger Configuration
 - Enable Swagger in production (with authentication)
 - Add XML documentation comments
 - Include example requests/responses
@@ -254,27 +257,24 @@ Retrieve all request/response pairs (sorted by newest first).
 - Readiness probe: `/health/ready` (is MongoDB connected?)
 - Integrate with Kubernetes/Docker health checks
 
-#### b) Unit Tests
-- Create `ReverseSentence.Tests` project
-- Test coverage for:
-  - `ReverseService.ReverseWords()` - core logic
-  - Controller validation scenarios
-  - Repository MongoDB interactions (with Moq)
-- Target: >80% code coverage
-
-#### c) Telemetry & Monitoring
+#### b) Telemetry & Monitoring
 **OpenTelemetry Integration:**
 - Distributed tracing (track request flow)
 - Metrics: request duration, error rates, cache hit ratio
 - Export to Prometheus/Grafana or Application Insights
 
-#### d) Audit Logging
+#### c) Audit Logging
 **Structured Logging:**
 - Log request/response payloads (sanitized)
 - Include user identity (from JWT claims)
 - Log levels: Information (success), Warning (validation), Error (exceptions)
 - Use Serilog with JSON formatting
 - Ship logs to centralized system (ELK stack / Azure Monitor)
+
+#### d) Cloud Hosting
+- Deploy to Azure App Service / AWS ECS / Google Cloud Run
+- Configure environment-specific settings
+- Set up CI/CD pipeline (GitHub Actions / Azure DevOps)
 
 **Example Log Entry:**
 ```json
