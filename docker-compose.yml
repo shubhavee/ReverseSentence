@@ -24,7 +24,7 @@ services:
       dockerfile: ReverseSentence/Dockerfile
     container_name: reversesentence-api
     ports:
-      - "5000:8080"
+      - "5001:8080"
     depends_on:
       mongodb:
         condition: service_healthy

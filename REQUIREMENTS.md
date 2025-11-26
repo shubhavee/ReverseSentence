@@ -45,6 +45,178 @@ A production-ready REST API service for reversing words(Assuming that words are 
 └─────────────────────────────────────┘
 ```
 
+## Roadmap & Milestones
+
+### ✅ P0 - MVP (COMPLETED)
+
+**Goal:** Core functionality with production-ready basics
+
+- [x] **Setup Instructions** - Machine-agnostic README with Docker setup
+- [x] **Requirements Documentation** - This file with architecture details
+- [x] **3 API Endpoints** - POST reverse, GET search, GET history
+- [x] **MongoDB Integration** - NoSQL database with text indexing
+- [x] **Input Validation** - Max length (1000 chars), required field validation
+- [x] **Error Handling Middleware** - Global exception handling with proper HTTP status codes
+- [x] **Swagger Documentation** - Interactive API documentation
+- [x] **Docker Support** - Dockerfile with multi-stage builds
+- [x] **Docker Compose** - MongoDB + API in one command (`docker-compose up`)
+
+**Design Decisions:**
+- ErrorHandlingMiddleware added in P0 (moved from P4) for production readiness
+- Input validation with Data Annotations on DTOs
+- Layered architecture for maintainability and testability
+
+---
+
+### ✅ P1 - Production Essentials (COMPLETED)
+
+**Goal:** Security, performance, and caching
+
+#### a) Authentication & Authorization
+**Approach:** Pragmatic test accounts with JWT
+- Create hardcoded test users (admin, user1, user2)
+- Implement JWT token-based authentication
+- Add `[Authorize]` attributes to endpoints
+- **Future:** Migrate to Auth0 / Azure AD / IdentityServer and leverage a secure key management system.
+
+**Rationale:** Avoiding over-engineering with full user management in early stages
+
+#### b) Async POST API - ⚠️ DECISION REVERSED
+**Original Plan:** Make POST async  
+**Updated Decision:** Keep synchronous
+- Word reversal is CPU-bound and fast (<1ms)
+- Async adds complexity without performance benefit
+- Already uses `async` for MongoDB I/O operations
+- **Alternative:** Focus on horizontal scaling + rate limiting (P3)
+
+#### c) Caching Strategy
+**Implementation:**
+- Create `ICache` interface for abstraction
+- Start with `IMemoryCache` (ASP.NET Core built-in)
+- Cache reversed results with sentence as key
+- **Sliding Expiration:** 1-hour window that resets on each access
+  - Frequently accessed sentences stay cached indefinitely
+  - Rarely used entries auto-expire after 1 hour of inactivity
+  - Optimal for deterministic operations like word reversal
+- No cache invalidation needed since operation is idempotent (deterministic)
+- **Future:** Swap to Redis for distributed caching
+
+**Cache Expiration Decision:**
+- **Chosen:** Sliding expiration over absolute expiration
+- **Rationale:** Word reversal is deterministic—"hello" always becomes "olleh"
+- Popular phrases remain cached, reducing database load
+- Memory-efficient: unused entries expire automatically
+
+**Benefits:**
+- Reduces database queries for repeated sentences
+- Extensible design for future cache providers (Redis, Memcached)
+- Performance improvement for high-frequency requests
+- Maximum cache hit ratio for popular inputs
+
+#### d) Response Optimization
+- **Pagination** on `/api/reverse/history` endpoint (critical for production)
+  - Add `?page=1&pageSize=20` query parameters
+  - Return metadata: `totalCount`, `currentPage`, `totalPages`
+- **Response Compression** (Gzip/Brotli) for large responses
+
+---
+
+### ✅ P2 - Deployment Ready (COMPLETED)
+
+**Goal:** Containerization and hosting
+
+#### a) Docker Compose Enhancement
+- [x] Multi-container setup (API + MongoDB)
+- [ ] Environment variable configuration
+- [ ] Volume persistence for MongoDB data
+- [ ] Health checks in docker-compose.yml
+
+#### b) Unit Tests
+- Create `ReverseSentence.Tests` project
+- Test coverage for:
+  - `ReverseService.ReverseWords()` - core logic
+  - Controller validation scenarios
+  - Repository MongoDB interactions (with Moq)
+- Target: >80% code coverage
+
+#### d) Swagger Configuration
+- Enable Swagger in production (with authentication)
+- Add XML documentation comments
+- Include example requests/responses
+
+---
+
+### 🔄 P3 - Resilience & Rate Limiting (In Progress)
+
+**Goal:** Protect API from abuse and overload
+
+#### a) Rate Limiting
+**Implementation:**
+- Use `AspNetCoreRateLimit` or built-in .NET 7+ rate limiting
+- Per-client IP limits: 100 requests/minute
+- Per-endpoint limits: 1000 requests/hour
+- Return `429 Too Many Requests` with `Retry-After` header
+
+**Rationale:**
+- Prevents abuse and DoS attacks
+- More effective than making CPU-bound operations async
+- Essential for public-facing APIs
+
+---
+
+### 🔜 P4 - Observability & Testing
+
+**Goal:** Production monitoring and quality assurance
+
+#### a) Health Checks
+- Liveness probe: `/health/live` (is API running?)
+- Readiness probe: `/health/ready` (is MongoDB connected?)
+- Integrate with Kubernetes/Docker health checks
+
+#### b) Telemetry & Monitoring
+**OpenTelemetry Integration:**
+- Distributed tracing (track request flow)
+- Metrics: request duration, error rates, cache hit ratio
+- Export to Prometheus/Grafana or Application Insights
+
+#### c) Audit Logging
+**Structured Logging:**
+- Log request/response payloads (sanitized)
+- Include user identity (from JWT claims)
+- Log levels: Information (success), Warning (validation), Error (exceptions)
+- Use Serilog with JSON formatting
+- Ship logs to centralized system (ELK stack / Azure Monitor)
+
+#### d) Cloud Hosting
+- Deploy to Azure App Service / AWS ECS / Google Cloud Run
+- Configure environment-specific settings
+- Set up CI/CD pipeline (GitHub Actions / Azure DevOps)
+
+**Example Log Entry:**
+```json
+{
+  "timestamp": "2025-11-26T10:30:00Z",
+  "level": "Information",
+  "userId": "user1",
+  "action": "ReverseSentence",
+  "originalSentence": "hello world",
+  "reversedSentence": "olleh dlrow",
+  "duration": "15ms"
+}
+```
+
+---
+
+## Future Enhancements (P5+)
+
+- **User Profile Service** - Full user management with registration/login and secret management
+- **Analytics Dashboard** - Most reversed words, usage statistics
+- **Webhook Support** - Notify external systems on new reversals
+- **GraphQL API** - Alternative to REST for flexible queries
+- **Multi-language Support** - Handle non-ASCII characters properly
+
+---
+
 ### Technology Stack
 
 - **Framework:** ASP.NET Core 8.0 (Web API)
@@ -126,178 +298,6 @@ Retrieve all request/response pairs (sorted by newest first).
   }
 ]
 ```
-
----
-
-## Roadmap & Milestones
-
-### ✅ P0 - MVP (COMPLETED)
-
-**Goal:** Core functionality with production-ready basics
-
-- [x] **Setup Instructions** - Machine-agnostic README with Docker setup
-- [x] **Requirements Documentation** - This file with architecture details
-- [x] **3 API Endpoints** - POST reverse, GET search, GET history
-- [x] **MongoDB Integration** - NoSQL database with text indexing
-- [x] **Input Validation** - Max length (1000 chars), required field validation
-- [x] **Error Handling Middleware** - Global exception handling with proper HTTP status codes
-- [x] **Swagger Documentation** - Interactive API documentation
-- [x] **Docker Support** - Dockerfile with multi-stage builds
-- [x] **Docker Compose** - MongoDB + API in one command (`docker-compose up`)
-
-**Design Decisions:**
-- ErrorHandlingMiddleware added in P0 (moved from P4) for production readiness
-- Input validation with Data Annotations on DTOs
-- Layered architecture for maintainability and testability
-
----
-
-### ✅ P1 - Production Essentials (COMPLETED)
-
-**Goal:** Security, performance, and caching
-
-#### a) Authentication & Authorization
-**Approach:** Pragmatic test accounts with JWT
-- Create hardcoded test users (admin, user1, user2)
-- Implement JWT token-based authentication
-- Add `[Authorize]` attributes to endpoints
-- **Future:** Migrate to Auth0 / Azure AD / IdentityServer and leverage a secure key management system.
-
-**Rationale:** Avoiding over-engineering with full user management in early stages
-
-#### b) Async POST API - ⚠️ DECISION REVERSED
-**Original Plan:** Make POST async  
-**Updated Decision:** Keep synchronous
-- Word reversal is CPU-bound and fast (<1ms)
-- Async adds complexity without performance benefit
-- Already uses `async` for MongoDB I/O operations
-- **Alternative:** Focus on horizontal scaling + rate limiting (P3)
-
-#### c) Caching Strategy
-**Implementation:**
-- Create `ICache` interface for abstraction
-- Start with `IMemoryCache` (ASP.NET Core built-in)
-- Cache reversed results with sentence as key
-- **Sliding Expiration:** 1-hour window that resets on each access
-  - Frequently accessed sentences stay cached indefinitely
-  - Rarely used entries auto-expire after 1 hour of inactivity
-  - Optimal for deterministic operations like word reversal
-- No cache invalidation needed since operation is idempotent (deterministic)
-- **Future:** Swap to Redis for distributed caching
-
-**Cache Expiration Decision:**
-- **Chosen:** Sliding expiration over absolute expiration
-- **Rationale:** Word reversal is deterministic—"hello" always becomes "olleh"
-- Popular phrases remain cached, reducing database load
-- Memory-efficient: unused entries expire automatically
-
-**Benefits:**
-- Reduces database queries for repeated sentences
-- Extensible design for future cache providers (Redis, Memcached)
-- Performance improvement for high-frequency requests
-- Maximum cache hit ratio for popular inputs
-
-#### d) Response Optimization
-- **Pagination** on `/api/reverse/history` endpoint (critical for production)
-  - Add `?page=1&pageSize=20` query parameters
-  - Return metadata: `totalCount`, `currentPage`, `totalPages`
-- **Response Compression** (Gzip/Brotli) for large responses
-
----
-
-### 🔄 P2 - Deployment Ready (In progress)
-
-**Goal:** Containerization and hosting
-
-#### a) Docker Compose Enhancement
-- [x] Multi-container setup (API + MongoDB)
-- [ ] Environment variable configuration
-- [ ] Volume persistence for MongoDB data
-- [ ] Health checks in docker-compose.yml
-
-#### b) Unit Tests
-- Create `ReverseSentence.Tests` project
-- Test coverage for:
-  - `ReverseService.ReverseWords()` - core logic
-  - Controller validation scenarios
-  - Repository MongoDB interactions (with Moq)
-- Target: >80% code coverage
-
-#### d) Swagger Configuration
-- Enable Swagger in production (with authentication)
-- Add XML documentation comments
-- Include example requests/responses
-
----
-
-### 🔜 P3 - Resilience & Rate Limiting
-
-**Goal:** Protect API from abuse and overload
-
-#### a) Rate Limiting
-**Implementation:**
-- Use `AspNetCoreRateLimit` or built-in .NET 7+ rate limiting
-- Per-client IP limits: 100 requests/minute
-- Per-endpoint limits: 1000 requests/hour
-- Return `429 Too Many Requests` with `Retry-After` header
-
-**Rationale:**
-- Prevents abuse and DoS attacks
-- More effective than making CPU-bound operations async
-- Essential for public-facing APIs
-
----
-
-### 🔜 P4 - Observability & Testing
-
-**Goal:** Production monitoring and quality assurance
-
-#### a) Health Checks
-- Liveness probe: `/health/live` (is API running?)
-- Readiness probe: `/health/ready` (is MongoDB connected?)
-- Integrate with Kubernetes/Docker health checks
-
-#### b) Telemetry & Monitoring
-**OpenTelemetry Integration:**
-- Distributed tracing (track request flow)
-- Metrics: request duration, error rates, cache hit ratio
-- Export to Prometheus/Grafana or Application Insights
-
-#### c) Audit Logging
-**Structured Logging:**
-- Log request/response payloads (sanitized)
-- Include user identity (from JWT claims)
-- Log levels: Information (success), Warning (validation), Error (exceptions)
-- Use Serilog with JSON formatting
-- Ship logs to centralized system (ELK stack / Azure Monitor)
-
-#### d) Cloud Hosting
-- Deploy to Azure App Service / AWS ECS / Google Cloud Run
-- Configure environment-specific settings
-- Set up CI/CD pipeline (GitHub Actions / Azure DevOps)
-
-**Example Log Entry:**
-```json
-{
-  "timestamp": "2025-11-26T10:30:00Z",
-  "level": "Information",
-  "userId": "user1",
-  "action": "ReverseSentence",
-  "originalSentence": "hello world",
-  "reversedSentence": "olleh dlrow",
-  "duration": "15ms"
-}
-```
-
----
-
-## Future Enhancements (P5+)
-
-- **User Profile Service** - Full user management with registration/login and secret management
-- **Analytics Dashboard** - Most reversed words, usage statistics
-- **Webhook Support** - Notify external systems on new reversals
-- **GraphQL API** - Alternative to REST for flexible queries
-- **Multi-language Support** - Handle non-ASCII characters properly
 
 ---
 

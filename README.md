@@ -18,13 +18,7 @@ A production-ready REST API service that reverses words in sentences and stores 
 
 | Component | Version | Required |
 |-----------|---------|----------|
-| .NET SDK | 8.0+ |  Yes |
 | Docker Desktop | Latest |  Yes (for MongoDB) |
-| IDE | VS 2022 / VS Code / Rider |  Optional |
-
-**Install .NET 8:**
-- Download: https://dotnet.microsoft.com/download/dotnet/8.0
-- Verify: `dotnet --version` (should show 8.0.x)
 
 **Install Docker Desktop:**
 - Download: https://www.docker.com/products/docker-desktop
@@ -38,37 +32,14 @@ A production-ready REST API service that reverses words in sentences and stores 
 
 ```bash
 # Clone from Git
-git clone <insert-my-repo-url>
+git clone https://github.com/shubhavee/ReverseSentence.git
 cd ReverseSentence
-
-# Or navigate to the project directory
-cd path/to/ReverseSentence
 ```
 
-### **Step 2: Start MongoDB & API**
-
-**Option A: Use the Start Script (Recommended)**
+### **Step 2: Start Docker container**
 
 ```bash
-# Windows (PowerShell)
-.\start.ps1
-
-# Linux/Mac
-chmod +x start.sh
-./start.sh
-```
-
-**Option B: Manual Start**
-
-```bash
-# Start MongoDB
-docker-compose up -d
-
-# Verify MongoDB is running
-docker ps
-
-# Start the API
-dotnet run --launch-profile https
+docker compose up -d
 ```
 
 ### **Step 3: Open Swagger UI**
@@ -76,7 +47,7 @@ dotnet run --launch-profile https
 After you see `Application started`, open your browser:
 
 ```
-https://localhost:7017/swagger
+http://localhost:5001/swagger
 ```
 
 ** Certificate Warning:** Click "Advanced"  "Proceed to localhost" (safe for local development)
@@ -87,7 +58,7 @@ https://localhost:7017/swagger
 
 ### **Method 1: Swagger UI (Easiest)**
 
-1. Open `https://localhost:7017/swagger` in your browser
+1. Open ` http://localhost:5001/swagger` in your browser
 2. Login to get a token:
    - Try **POST /api/auth/login** first
    - Use credentials: `user1` / `User123!`
@@ -116,26 +87,26 @@ https://localhost:7017/swagger
 
 ```bash
 # Step 1: Login to get token
-TOKEN=$(curl -X POST "https://localhost:7017/api/auth/login" \
+TOKEN=$(curl -X POST "https://localhost:5001/api/auth/login" \
   -H "Content-Type: application/json" \
   -d '{"username": "admin", "password": "Admin123!"}' \
   -k | jq -r '.token')
 
 # Step 2: Use token in subsequent requests
 # Reverse a sentence
-curl -X POST "https://localhost:7017/api/reverse" \
+curl -X POST "https://localhost:5001/api/reverse" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"sentence": "hello world"}' \
   -k
 
 # Search by word (only shows your data)
-curl -X GET "https://localhost:7017/api/reverse/search?word=hello" \
+curl -X GET "https://localhost:5001/api/reverse/search?word=hello" \
   -H "Authorization: Bearer $TOKEN" \
   -k
 
 # Get your history
-curl -X GET "https://localhost:7017/api/reverse/history" \
+curl -X GET "https://localhost:5001/api/reverse/history" \
   -H "Authorization: Bearer $TOKEN" \
   -k
 ```
@@ -346,13 +317,18 @@ docker-compose up -d
 
 **Solutions:**
 ```bash
-# Find what's using port 7017
-netstat -ano | findstr :7017
+# Find what's using port 5001
+- [windows] netstat -ano | findstr :5001
+OR
+- [mac] lsof -i tcp:5001
+
+# kill process at port 5001
+- kill -9 <PID>
 
 # Use different port
-dotnet run --urls="https://localhost:5001;http://localhost:5000"
+dotnet run --urls="https://localhost:5001;http://localhost:5002"
 
-# Then open: https://localhost:5001/swagger
+# Then open: https://localhost:5002/swagger
 ```
 
 ---
@@ -364,7 +340,7 @@ dotnet run --urls="https://localhost:5001;http://localhost:5000"
 **Solution:**
 Manually navigate to the **HTTPS URL**:
 ```
-https://localhost:7017/swagger
+https://localhost:5001/swagger
 ```
 
 **Why:** HTTPS is required for Swagger to work properly in development mode.
