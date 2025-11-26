@@ -23,8 +23,10 @@
 **/values.dev.yaml
 LICENSE
 README.md
-!**/.gitignore
-!.git/HEAD
-!.git/config
-!.git/packed-refs
-!.git/refs/heads/**
+REQUIREMENTS.md
+RUN-DOCKER.md
+**/ReverseSentence.Tests/**
+**/.idea
+**/dist
+**/build
+**/*.log

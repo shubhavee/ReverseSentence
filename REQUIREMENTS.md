@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-A production-ready REST API service for reversing words in sentences. Each request/response pair is persisted to a database and can be queried through additional endpoints.
+A production-ready REST API service for reversing words(Assuming that words are separated by spaces) in sentences. Each request/response pair is persisted to a database and can be queried through additional endpoints.
 
 **Core Functionality:**
 - User submits: `"abc def"` → Service returns: `"cba fed"`

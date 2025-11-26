@@ -12,22 +12,32 @@ services:
       - MONGO_INITDB_DATABASE=ReverseSentenceDB
     networks:
       - reversesentence-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   api:
     build:
-      context: ..
+      context: .
       dockerfile: ReverseSentence/Dockerfile
     container_name: reversesentence-api
     ports:
       - "5000:8080"
     depends_on:
-      - mongodb
+      mongodb:
+        condition: service_healthy
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_HTTP_PORTS=8080
       - MongoDbSettings__ConnectionString=mongodb://mongodb:27017
       - MongoDbSettings__DatabaseName=ReverseSentenceDB
       - MongoDbSettings__CollectionName=ReverseRequests
+      - Jwt__Secret=TPGtIPXIHPq5yfMRQvI/nbCfeY83ID+pJp6N7iORbU0=
+      - Jwt__Issuer=ReverseSentenceAPI
+      - Jwt__Audience=ReverseSentenceClient
+      - Jwt__ExpirationMinutes=60
     networks:
       - reversesentence-network
     restart: unless-stopped

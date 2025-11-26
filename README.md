@@ -1,6 +1,6 @@
 # Reverse Sentence API
 
-A production-ready REST API service that reverses words in sentences and stores all requests/responses in MongoDB.
+A production-ready REST API service that reverses words in sentences and stores all requests/responses in MongoDB. [REQUIREMENTS.md](REQUIREMENTS.md)
 
 ##  Features
 
