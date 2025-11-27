@@ -93,28 +93,11 @@ docker-compose down -v
 2. Click **Authorize** button (top right) on Swagger UI → Paste token → Authorize
 3. Now you can test other endpoints like **POST /api/reverse**
 
-### Using cURL
-
-```bash
-# Login
-TOKEN=$(curl -X POST "https://localhost:5001/api/auth/login" \
-  -H "Content-Type: application/json" \
-  -d '{"username": "admin", "password": "Admin123!"}' \
-  -k | jq -r '.token')
-
-# Reverse sentence
-curl -X POST "https://localhost:5001/api/reverse" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"sentence": "hello world"}' \
-  -k
-```
-
----
-
 ---
 
 ## API Endpoints
+
+**Note:** To hit any of the below APIs on swagger UI, make sure to click on the "Try It Out" button to edit the API request.
 
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
