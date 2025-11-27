@@ -96,8 +96,12 @@ export default function (data) {
     'history status is 200 or 429': (r) => r.status === 200 || r.status === 429,
   });
 
-  // Realistic user think time
-  sleep(1);
+  if (historyRes.status === 429) {
+    rateLimitHitRate.add(1);
+  }
+
+  // Minimal sleep to allow rapid requests and trigger rate limiting
+  sleep(0.1);
 }
 
 // Teardown

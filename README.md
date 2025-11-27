@@ -69,7 +69,7 @@ docker-compose down
 
 # Stop and delete all data
 docker-compose down -v
-``
+```
 
 ---
 
