@@ -1,544 +1,316 @@
 # Reverse Sentence API
 
-A production-ready REST API service that reverses words in sentences and stores all requests/responses in MongoDB. [REQUIREMENTS.md](REQUIREMENTS.md)
+Production-ready REST API that reverses words in sentences with MongoDB persistence, JWT authentication, rate limiting, and caching. See [REQUIREMENTS.md](REQUIREMENTS.md) for detailed architecture and roadmap.
 
-##  Features
+## Features
 
-- **Reverse Words**: Submit a sentence and get each word reversed individually
-- **Search History**: Find request/response pairs containing specific words
-- **Full History**: Retrieve complete audit trail of all transformations
-- **MongoDB Storage**: Persistent, scalable NoSQL database
-- **Error Handling**: Comprehensive error handling middleware
-- **Input Validation**: Request validation (1-1000 characters)
-- **Swagger Documentation**: Interactive API documentation
-
----
-
-##  Prerequisites
-
-| Component | Version | Required |
-|-----------|---------|----------|
-| Docker Desktop | Latest |  Yes (for MongoDB) |
-
-**Install Docker Desktop:**
-- Download: https://www.docker.com/products/docker-desktop
-- Verify: `docker --version` and `docker info`
+- **Word Reversal**: Reverse each word in a sentence individually
+- **Persistent Storage**: MongoDB with text search indexing
+- **Authentication**: JWT-based authentication
+- **Rate Limiting**: Token Bucket (100 req/min API, 10 req/min auth)
+- **Caching**: In-memory cache with sliding expiration
+- **API Documentation**: Interactive Swagger UI
+- **Load Testing**: Built-in k6 load tests
 
 ---
 
-##  Quick Start (3 Steps)
+## Prerequisites
 
-### **Step 1: Clone/Download the Project**
+- **Docker Desktop** - [Download](https://www.docker.com/products/docker-desktop)
 
+Verify installation:
 ```bash
-# Clone from Git
+docker --version
+```
+
+---
+
+## Quick Start
+
+### 1. Clone Repository
+```bash
 git clone https://github.com/shubhavee/ReverseSentence.git
 cd ReverseSentence
 ```
 
-### **Step 2: Start Docker container**
+### 2. Start Application
+```powershell
+# Windows
+.\start.ps1
+
+# Linux/Mac
+chmod +x start.sh && ./start.sh
+```
+
+**What to expect:**
+
+1. **Rebuild prompt:** `"Rebuild image? (y/N)"`
+   - First time: Press **Enter** (auto-builds)
+   - After code changes: Type **y**
+   - No changes: Press **Enter** (uses existing image)
+
+2. **Load test prompt:** `"Run load tests? (y/N)"`
+   - Testing performance: Type **y**
+   - Just running the app: Press **Enter**
+
+3. Script will start containers and wait for health checks (~30 seconds)
+
+### 3. Access Swagger UI
+
+Open: **http://localhost:5001/swagger**
+
+**Certificate Warning:** Click "Advanced" → "Proceed to localhost" (safe for local development)
+
+### 4. Stop Application
 
 ```bash
-docker compose up -d
-```
+# Stop containers (keeps data)
+docker-compose down
 
-### **Step 3: Open Swagger UI**
-
-After you see `Application started`, open your browser:
-
-```
-http://localhost:5001/swagger
-```
-
-** Certificate Warning:** Click "Advanced"  "Proceed to localhost" (safe for local development)
+# Stop and delete all data
+docker-compose down -v
+``
 
 ---
 
-##  Testing the API
+## Authentication
 
-### **Method 1: Swagger UI (Easiest)**
+**⚠️ Required:** All API endpoints (except `/health` and `/api/auth/login`) require authentication.
 
-1. Open ` http://localhost:5001/swagger` in your browser
-2. Login to get a token:
-   - Try **POST /api/auth/login** first
-   - Use credentials: `user1` / `User123!`
-   - Copy the token from the response
-3. Click the **Authorize** button (lock icon at top right)
-4. Paste the token in the **Authorization** dialog (just the token, not "Bearer")
-5. Click **Authorize** then **Close**
-6. Now try **POST /api/reverse**  **Try it out**
-7. Enter request body:
-   ```json
-   {
-     "sentence": "hello world"
-   }
-   ```
-8. Click **Execute**
-9. See response:
-   ```json
-   {
-     "originalSentence": "hello world",
-     "reversedSentence": "olleh dlrow",
-     "timestamp": "2025-11-26T10:30:00Z"
-   }
-   ```
+### Test Credentials
 
-### **Method 2: cURL**
+| Username | Password |
+|----------|----------|
+| user1 | User123! |
+| user2 | User123! |
+| admin | Admin123! |
+
+> **Note:** All users currently have identical access. Role-based authorization will be implemented in P5+.
+
+### Quick Test via Swagger
+
+1. **POST /api/auth/login** → Use credentials above → Copy `token` value from response.
+2. Click **Authorize** button (top right) on Swagger UI → Paste token → Authorize
+3. Now you can test other endpoints like **POST /api/reverse**
+
+### Using cURL
 
 ```bash
-# Step 1: Login to get token
+# Login
 TOKEN=$(curl -X POST "https://localhost:5001/api/auth/login" \
   -H "Content-Type: application/json" \
   -d '{"username": "admin", "password": "Admin123!"}' \
   -k | jq -r '.token')
 
-# Step 2: Use token in subsequent requests
-# Reverse a sentence
+# Reverse sentence
 curl -X POST "https://localhost:5001/api/reverse" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"sentence": "hello world"}' \
   -k
-
-# Search by word (only shows your data)
-curl -X GET "https://localhost:5001/api/reverse/search?word=hello" \
-  -H "Authorization: Bearer $TOKEN" \
-  -k
-
-# Get your history
-curl -X GET "https://localhost:5001/api/reverse/history" \
-  -H "Authorization: Bearer $TOKEN" \
-  -k
 ```
-
-**Note:** `-k` flag skips SSL verification for local testing
 
 ---
 
-##  API Reference
+---
 
-### **0. Login (Authentication)**
+## API Endpoints
 
-**Endpoint:** `POST /api/auth/login`  
-**Description:** Authenticate and receive JWT token
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| GET | `/health` | Health check | No |
+| POST | `/api/auth/login` | Get JWT token | No |
+| POST | `/api/reverse` | Reverse sentence words | Yes |
+| GET | `/api/reverse/search?word={word}` | Search by word | Yes |
+| GET | `/api/reverse/history?page=1&pageSize=20` | Get history (paginated) | Yes |
+
+### POST /api/reverse
 
 **Request:**
 ```json
+{"sentence": "hello world"}
+```
+
+**Response:**
+```json
 {
-  "username": "admin",
-  "password": "Admin123!"
+  "originalSentence": "hello world",
+  "reversedSentence": "olleh dlrow",
+  "timestamp": "2025-11-27T10:30:00Z"
 }
 ```
 
-**Response (200 OK):**
-```json
-{
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "username": "admin",
-  "expiresAt": "2025-11-26T11:30:00Z"
-}
-```
+**Rate Limit:** 100 requests/minute per IP
 
-**Response (401 Unauthorized):**
-```json
-{
-  "error": "Invalid username or password"
-}
-```
-
-**Token Expiration:** 60 minutes (configurable)
-
----
-
-### **1. Reverse Sentence**
-
-**Endpoint:** `POST /api/reverse`  
-**Description:** Reverses each word in the sentence and stores it in MongoDB  
- **Requires:** JWT token in `Authorization: Bearer {token}` header
-
-**Request:**
-```json
-{
-  "sentence": "abc def"
-}
-```
-
-**Response (200 OK):**
-```json
-{
-  "originalSentence": "abc def",
-  "reversedSentence": "cba fed",
-  "timestamp": "2025-11-26T10:30:00.000Z"
-}
-```
-
-**Validation:**
-- Min length: 1 character
-- Max length: 1000 characters
-- Required field
-
----
-
-### **2. Search by Word**
-
-**Endpoint:** `GET /api/reverse/search?word={word}`  
-**Description:** Finds all your request/response pairs containing the specified word  
- **Requires:** JWT token  
- **Data Scope:** Returns only the authenticated user's data
-
-**Example:** `/api/reverse/search?word=hello`
-
-**Response (200 OK):**
-```json
-[
-  {
-    "id": "507f1f77bcf86cd799439011",
-    "originalSentence": "hello world",
-    "reversedSentence": "olleh dlrow",
-    "createdAt": "2025-11-26T10:30:00.000Z"
-  }
-]
-```
-
-**Features:**
-- Case-insensitive search
-- Partial matching supported
-- Sorted by most recent first
-- User-isolated data
-
----
-
-### **3. Get History (Paginated)**
-
-**Endpoint:** `GET /api/reverse/history?page={page}&pageSize={pageSize}`  
-**Description:** Retrieves your stored request/response pairs with pagination  
- **Requires:** JWT token  
- **Data Scope:** Returns only the authenticated user's data
+### GET /api/reverse/history
 
 **Query Parameters:**
-- `page` (optional): Page number, starts at 1. Default: `1`
-- `pageSize` (optional): Items per page. Default: `20`, Max: `100`
+- `page` (default: 1)
+- `pageSize` (default: 20, max: 100)
 
-**Example:** `/api/reverse/history?page=1&pageSize=20`
-
-**Response (200 OK):**
+**Response:**
 ```json
 {
-  "data": [
-    {
-      "id": "507f1f77bcf86cd799439011",
-      "originalSentence": "test one",
-      "reversedSentence": "tset eno",
-      "createdAt": "2025-11-26T10:35:00.000Z"
-    },
-    {
-      "id": "507f1f77bcf86cd799439012",
-      "originalSentence": "test two",
-      "reversedSentence": "tset owt",
-      "createdAt": "2025-11-26T10:30:00.000Z"
-    }
-  ],
+  "data": [{...}],
   "currentPage": 1,
-  "pageSize": 20,
-  "totalCount": 42,
   "totalPages": 3,
-  "hasNextPage": true,
-  "hasPreviousPage": false
+  "totalCount": 42
 }
 ```
 
-**Features:**
-- Paginated results
-- Sorted by newest first
-- Rich pagination metadata
-- User-isolated data
+**Full API documentation:** http://localhost:5001/swagger
 
----
+### GET /health
 
-##  Configuration
+Simple health check endpoint for monitoring.
 
-### **MongoDB Settings**
-
-Configuration is in `appsettings.json`:
-
+**Response:**
 ```json
 {
-  "MongoDbSettings": {
-    "ConnectionString": "mongodb://localhost:27017",
-    "DatabaseName": "ReverseSentenceDB",
-    "CollectionName": "ReverseRequests"
-  }
+  "status": "healthy",
+  "timestamp": "2025-11-27T10:30:00Z"
 }
 ```
 
-### **Environment Variables (Optional)**
+**Use case:** Docker health checks, Kubernetes liveness probes, uptime monitoring
 
-Override settings using environment variables:
+---
+
+---
+
+## Configuration
+
+Default settings in `appsettings.json` :
 
 ```bash
-# Windows (PowerShell)
-$env:MongoDbSettings__ConnectionString="mongodb://your-host:27017"
-$env:MongoDbSettings__DatabaseName="YourDatabaseName"
+# MongoDB
+MongoDbSettings__ConnectionString=mongodb://localhost:27017
+MongoDbSettings__DatabaseName=ReverseSentenceDB
 
+# Rate Limiting
+RateLimiting__Api__TokenLimit=100
+RateLimiting__Api__ReplenishmentMinutes=1
+
+# JWT
+Jwt__ExpirationMinutes=60
+```
+
+---
+
+---
+
+## Troubleshooting
+
+**MongoDB not connecting:**
+```bash
+docker ps  # Check if containers are running
+docker compose logs mongodb  # View logs
+```
+
+**Port 5001 already in use:**
+```bash
+# Windows
+netstat -ano | findstr :5001
 # Linux/Mac
-export MongoDbSettings__ConnectionString="mongodb://your-host:27017"
-export MongoDbSettings__DatabaseName="YourDatabaseName"
+lsof -i :5001
+
+#kill process on port 5001
 ```
 
----
+**Certificate warning in browser:**
+Click "Advanced" → "Proceed to localhost" (safe for local dev)
 
-##  Troubleshooting
-
-### **Problem: MongoDB Connection Failed**
-
-**Symptoms:** `Unable to connect to MongoDB` error
-
-**Solutions:**
+**Clear all data:**
 ```bash
-# Check if MongoDB is running
-docker ps
-
-# If not running, start it
-docker-compose up -d
-
-# Check logs
-docker logs reversesentence-mongodb
-
-# Restart MongoDB
-docker-compose down
-docker-compose up -d
+docker-compose down -v  # Deletes volumes
 ```
 
 ---
 
-### **Problem: Port Already in Use**
-
-**Symptoms:** `Address already in use` error
-
-**Solutions:**
-```bash
-# Find what's using port 5001
-- [windows] netstat -ano | findstr :5001
-OR
-- [mac] lsof -i tcp:5001
-
-# kill process at port 5001
-- kill -9 <PID>
-
-# Use different port
-dotnet run --urls="https://localhost:5001;http://localhost:5002"
-
-# Then open: https://localhost:5002/swagger
-```
-
 ---
 
-### **Problem: Swagger UI Opens with HTTP**
+## Load Testing
 
-**Symptoms:** Browser opens `http://localhost:5292/swagger` instead of HTTPS
-
-**Solution:**
-Manually navigate to the **HTTPS URL**:
-```
-https://localhost:5001/swagger
-```
-
-**Why:** HTTPS is required for Swagger to work properly in development mode.
-
----
-
-### **Problem: Certificate Warning in Browser**
-
-**Symptoms:** "Your connection is not private" warning
-
-**Solution:**
-1. Click **"Advanced"**
-2. Click **"Proceed to localhost (unsafe)"**
-
-**This is safe for local development!**
-
-**Optional - Trust the certificate permanently:**
-```bash
-dotnet dev-certs https --trust
-```
-
----
-
-### **Problem: Data Persists After Stopping API**
-
-**Symptoms:** Old data still appears after restarting
-
-**Why:** This is **expected behavior**! MongoDB runs separately from the API.
-
-**To clear data:**
-```bash
-# Option 1: Delete from MongoDB
-docker exec -it reversesentence-mongodb mongosh ReverseSentenceDB \
-  --eval "db.ReverseRequests.deleteMany({})"
-
-# Option 2: Reset MongoDB completely
-docker-compose down -v
-docker-compose up -d
-```
-
----
-
-##  Stopping the Application
+Built-in k6 load tests validate rate limiting and performance:
 
 ```bash
-# Stop the API
-# Press Ctrl+C in the terminal running the API
-
-# Stop MongoDB (keeps data)
-docker-compose down
-
-# Stop MongoDB (deletes all data)
-docker-compose down -v
+.\ load-test.ps1  # Windows
+./load-test.sh    # Linux/Mac
 ```
+
+**Available tests:**
+1. Rate limiting load test (0→50 VUs, 3 min)
+2. Spike test (10→500 VUs)
+
+**Expected behavior:**
+- High rate limiting (80-95%) during peak load is **correct**
+- Proves system protection from overload
+- Successful requests remain fast (p95 < 500ms)
+
+See `LoadTests/README.md` for details.
 
 ---
 
-##  Verify MongoDB Data Directly
-
-```bash
-# Connect to MongoDB
-docker exec -it reversesentence-mongodb mongosh
-
-# Switch to database
-use ReverseSentenceDB
-
-# View all documents
-db.ReverseRequests.find().pretty()
-
-# Count documents
-db.ReverseRequests.countDocuments()
-
-# Search for specific word
-db.ReverseRequests.find({
-  $or: [
-    { originalSentence: /hello/i },
-    { reversedSentence: /hello/i }
-  ]
-}).pretty()
-
-# Exit
-exit
-```
-
 ---
 
-##  Project Structure
+## Architecture
 
+```
+Client → Controller → Service → Repository → MongoDB
+```
+
+**Design Patterns:**
+- Layered architecture (Controller/Service/Repository)
+- Dependency injection
+- DTO pattern for API contracts
+- Repository pattern for data access
+- Middleware pipeline (auth, rate limiting, error handling)
+
+**Project Structure:**
 ```
 ReverseSentence/
- Controllers/
-    ReverseController.cs          # API endpoints (3 routes)
- Services/
-    IReverseService.cs            # Service interface
-    ReverseService.cs             # Business logic (word reversal)
- Repositories/
-    IReverseRepository.cs         # Repository interface
-    ReverseRepository.cs          # MongoDB data access
- Models/
-    ReverseRequest.cs             # Domain entity
-    MongoDbSettings.cs            # Configuration model
- DTOs/
-    ReverseRequestDto.cs          # Input validation DTO
-    ReverseResponseDto.cs         # Response DTO
-    HistoryItemDto.cs             # History item DTO
- Middleware/
-    ErrorHandlingMiddleware.cs    # Global error handling
- Program.cs                         # Application entry point & DI
- appsettings.json                   # Configuration
- docker-compose.yml                 # MongoDB container setup
- start.ps1                          # Windows quick start
- start.sh                           # Linux/Mac quick start
- README.md                          # This file
- REQUIREMENTS.md                    # Detailed specifications
+├── ReverseSentence/           # Main API project
+│   ├── Controllers/           # API endpoints
+│   ├── Services/              # Business logic + caching
+│   ├── Repositories/          # MongoDB data access
+│   ├── Models/                # Domain entities
+│   ├── DTOs/                  # Request/response contracts
+│   ├── Middleware/            # Cross-cutting concerns
+│   └── Extensions/            # Rate limiting configuration
+├── ReverseSentence.Tests/     # Unit tests
+│   ├── Services/              # Service layer tests
+│   └── Unit/                  # Unit test suites
+├── LoadTests/                 # k6 load tests
+│   └── k6/                    # Test scripts
+├── docker-compose.yml         # Container orchestration
+├── start.ps1 / start.sh       # Application startup scripts
+├── load-test.ps1 / load-test.sh  # Load testing scripts
+├── README.md                  # This file - setup guide
+└── REQUIREMENTS.md            # Architecture & roadmap
 ```
 
 ---
 
-##  Architecture Overview
+---
 
-This project follows principles:
+## Documentation
 
-```
-
-   API Layer (Controllers)           
-   - Thin controllers                
-   - Input validation                
-   - HTTP concerns                   
-
-             
-
-   Service Layer                      
-   - Business logic                   
-   - Word reversal algorithm          
-   - Orchestration                    
-
-             
-
-   Repository Layer                   
-   - Data access abstraction          
-   - MongoDB operations               
-   - Text search indexing             
-
-             
-
-   MongoDB                            
-   - Document storage                 
-   - Persistent volumes               
-
-```
-
-**Key Patterns:**
--  Repository Pattern - Data access abstraction
--  Service Layer - Business logic isolation
--  DTOs - API contract protection
--  Dependency Injection - Loose coupling
--  Middleware Pipeline - Cross-cutting concerns
+- **[REQUIREMENTS.md](REQUIREMENTS.md)** - Architecture, roadmap, design decisions
+- **Swagger UI** - Interactive API docs at http://localhost:5001/swagger
 
 ---
 
-##  Additional Documentation
+## Tech Stack
 
-For detailed architecture, roadmap, and phase planning, see:
-
- **[REQUIREMENTS.md](REQUIREMENTS.md)** - Complete specifications including:
-- Detailed architecture
-- P0, P1, P2, P3, P4 milestones
-- Future enhancements
-- Design decisions
-- Testing strategy
-
----
-
-##  Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+- ASP.NET Core 8.0
+- MongoDB 3.5.1
+- JWT Authentication
+- Token Bucket Rate Limiting
+- In-Memory Caching
+- k6 Load Testing
+- Docker + Docker Compose
 
 ---
 
-##  License
-
-This project is for educational/demonstration purposes.
-
----
-
-##  Support
-
-- **Documentation Issues** Check [REQUIREMENTS.md](REQUIREMENTS.md)
-- **Setup Problems** See Troubleshooting section above
-- **Feature Requests** Open a GitHub issue
-- **Questions** Create a discussion
-
----
-
-**Status:**  P0 Complete - Production Ready for Local Testing
-
-**Version:** 1.0.0
+**Version:** 1.0.0  
+**Status:** Production-ready for local testing

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   mongodb:
     image: mongo:latest
@@ -38,9 +36,32 @@ services:
       - Jwt__Issuer=ReverseSentenceAPI
       - Jwt__Audience=ReverseSentenceClient
       - Jwt__ExpirationMinutes=60
+      - RateLimiting__Api__TokenLimit=100
+      - RateLimiting__Api__ReplenishmentMinutes=1
+      - RateLimiting__Api__TokensPerPeriod=100
+      - RateLimiting__Auth__TokenLimit=10
+      - RateLimiting__Auth__ReplenishmentMinutes=1
+      - RateLimiting__Auth__TokensPerPeriod=10
+      - RateLimiting__Global__PermitLimit=100000
+      - RateLimiting__Global__WindowHours=1
     networks:
       - reversesentence-network
     restart: unless-stopped
+
+  # k6 load testing service (run on-demand)
+  k6:
+    image: grafana/k6:latest
+    container_name: reversesentence-k6
+    networks:
+      - reversesentence-network
+    volumes:
+      - ./LoadTests/k6:/scripts
+    environment:
+      - API_URL=http://api:8080
+    profiles:
+      - tools  # Only starts when explicitly requested
+    depends_on:
+      - api
 
 volumes:
   mongodb_data:

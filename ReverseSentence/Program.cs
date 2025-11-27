@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using MongoDB.Driver;
+using ReverseSentence.Extensions;
 using ReverseSentence.Middleware;
 using ReverseSentence.Models;
 using ReverseSentence.Repositories;
@@ -39,6 +40,9 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<ICache, InMemoryCache>();
+
+// Configure Rate Limiting
+builder.Services.AddRateLimitingPolicies(builder.Configuration);
 
 var jwtSecret = builder.Configuration["Jwt:Secret"] ?? throw new InvalidOperationException("JWT Secret not configured"); // Post P4 phase, enable secure secret management system
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? throw new InvalidOperationException("JWT Issuer not configured");
@@ -123,6 +127,8 @@ if (app.Environment.IsDevelopment())
 app.UseResponseCompression();
 
 app.UseHttpsRedirection();
+
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();

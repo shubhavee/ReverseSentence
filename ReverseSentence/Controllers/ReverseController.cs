@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using ReverseSentence.DTOs;
 using ReverseSentence.Services;
 
@@ -8,6 +9,7 @@ namespace ReverseSentence.Controllers
     [ApiController]
     [Route("api/[controller]")]
     [Authorize]
+    [EnableRateLimiting("api-limit")]
     public class ReverseController : ControllerBase
     {
         private readonly IReverseService reverseService;
@@ -27,6 +29,7 @@ namespace ReverseSentence.Controllers
         [HttpPost]
         [ProducesResponseType(typeof(ReverseResponseDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
         public async Task<ActionResult<ReverseResponseDto>> ReverseSentence(
             [FromBody] ReverseRequestDto request,
             CancellationToken cancellationToken)
@@ -48,6 +51,7 @@ namespace ReverseSentence.Controllers
         [HttpGet("search")]
         [ProducesResponseType(typeof(IEnumerable<HistoryItemDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
         public async Task<ActionResult<IEnumerable<HistoryItemDto>>> SearchByWord(
             [FromQuery] string word,
             CancellationToken cancellationToken)
@@ -70,6 +74,7 @@ namespace ReverseSentence.Controllers
         [HttpGet("history")]
         [ProducesResponseType(typeof(PagedResponse<HistoryItemDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
         public async Task<ActionResult<PagedResponse<HistoryItemDto>>> GetHistory(
             [FromQuery] int page = 1, 
             [FromQuery] int pageSize = 20,

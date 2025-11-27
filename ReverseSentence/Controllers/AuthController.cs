@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using ReverseSentence.DTOs;
 using ReverseSentence.Services;
 
@@ -23,8 +24,10 @@ namespace ReverseSentence.Controllers
         /// <param name="request">Login credentials</param>
         /// <returns>JWT token for authentication</returns>
         [HttpPost("login")]
+        [EnableRateLimiting("auth-limit")]
         [ProducesResponseType(typeof(LoginResponseDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
         public async Task<ActionResult<LoginResponseDto>> Login([FromBody] LoginRequestDto request)
         {
             if (!ModelState.IsValid)

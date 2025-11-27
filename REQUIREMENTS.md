@@ -77,7 +77,9 @@ A production-ready REST API service for reversing words(Assuming that words are 
 - Create hardcoded test users (admin, user1, user2)
 - Implement JWT token-based authentication
 - Add `[Authorize]` attributes to endpoints
-- **Future:** Migrate to Auth0 / Azure AD / IdentityServer and leverage a secure key management system.
+- **Current State:** All users have identical access (roles not enforced)
+- **Future (P5+):** Implement role-based authorization with `[Authorize(Roles = "Admin")]`
+- **Future:** Migrate to Auth0 / Azure AD / IdentityServer and leverage a secure key management system
 
 **Rationale:** Avoiding over-engineering with full user management in early stages
 
@@ -127,51 +129,107 @@ A production-ready REST API service for reversing words(Assuming that words are 
 
 #### a) Docker Compose Enhancement
 - [x] Multi-container setup (API + MongoDB)
-- [ ] Environment variable configuration
-- [ ] Volume persistence for MongoDB data
-- [ ] Health checks in docker-compose.yml
+- [x] Environment variable configuration for rate limiting
+- [x] Volume persistence for MongoDB data
+- [x] Health checks in docker-compose.yml
+- [x] Smart startup scripts (start.ps1/start.sh) with rebuild detection
 
 #### b) Unit Tests
-- Create `ReverseSentence.Tests` project
-- Test coverage for:
+- [x] Created `ReverseSentence.Tests` project
+- [x] Test coverage for:
   - `ReverseService.ReverseWords()` - core logic
-  - Controller validation scenarios
-  - Repository MongoDB interactions (with Moq)
-- Target: >80% code coverage
+  - `AuthService` - JWT token generation
+  - `InMemoryCache` - caching behavior
+  - `RateLimiting` - Token Bucket, Fixed Window, Sliding Window
+- [x] FluentAssertions for readable assertions
 
-#### d) Swagger Configuration
-- Enable Swagger in production (with authentication)
-- Add XML documentation comments
-- Include example requests/responses
+#### c) Swagger Configuration
+- [x] Swagger enabled with JWT authentication
+- [x] Bearer token support in UI
+- [x] API endpoint documentation
+- [x] Request/response examples
 
 ---
 
-### 🔄 P3 - Resilience & Rate Limiting (In Progress)
+### ✅ P3 - Resilience & Rate Limiting (COMPLETED)
 
 **Goal:** Protect API from abuse and overload
 
-#### a) Rate Limiting
+#### a) Rate Limiting ✅
 **Implementation:**
-- Use `AspNetCoreRateLimit` or built-in .NET 7+ rate limiting
-- Per-client IP limits: 100 requests/minute
-- Per-endpoint limits: 1000 requests/hour
-- Return `429 Too Many Requests` with `Retry-After` header
+- ✅ ASP.NET Core 8.0 built-in rate limiting middleware
+- ✅ Fixed Window: 100 requests/minute per IP (API endpoints)
+- ✅ Token Bucket: 10 requests/minute for `/login` endpoint
+- ✅ Sliding Window: 1000 requests/hour global limit
+- ✅ Custom 429 responses with `Retry-After` header
+- ✅ IP-based partitioning for per-client limits
+- ✅ Configurable via appsettings.json
+- ✅ Environment variable overrides in docker-compose.yml
 
-**Rationale:**
-- Prevents abuse and DoS attacks
-- More effective than making CPU-bound operations async
-- Essential for public-facing APIs
+**Policies Implemented:**
+1. **api-limit** (Token Bucket) ⚠️ UPDATED
+   - 100 tokens per minute per IP
+   - Applied to all `/api/reverse` endpoints
+   - Allows burst traffic (uses saved tokens)
+   - Queue limit: 5 requests
+   - **Decision:** Switched from Fixed Window to Token Bucket for better burst handling
+
+2. **auth-limit** (Token Bucket)
+   - 10 tokens per minute
+   - Applied to `/api/auth/login`
+   - Prevents brute force attacks
+   - Queue limit: 2 requests
+
+3. **global-limit** (Sliding Window)
+   - 100,000 requests per hour total (safety net)
+   - 6 segments per window for smooth distribution
+   - Queue limit: 10 requests
+   - Note: Per-IP limits are primary; global is fallback protection
+
+**Benefits:**
+- ✅ Prevents DoS attacks and API abuse
+- ✅ Protects against brute force on authentication
+- ✅ Automatic rate limit enforcement at middleware level
+- ✅ Graceful degradation with queue support
+- ✅ Clear error messages with retry information
+- ✅ Zero external dependencies (built into .NET 8)
+
+**Future Enhancement (P5+):**
+- Redis-backed distributed rate limiting for multi-instance deployments
+- Per-user rate limits (based on JWT claims)
+- Dynamic rate limit adjustment based on load
+
+#### b) Load Testing ✅
+**Implementation:**
+- ✅ k6 integration via Docker Compose with profiles
+- ✅ Rate limiting load test (0→50 VUs, gradual ramp over 3 min)
+- ✅ Spike test (10→500 VUs, validates system stability)
+- ✅ Automated test scripts (load-test.ps1/load-test.sh)
+- ✅ Realistic thresholds validating system protection
+
+**Key Findings:**
+- Rate limiting load test: 95% rate limiting at 50 VUs is **expected and correct**
+- Spike test: System handles 500 concurrent users (p99=34ms) without crashing
+- Successful requests remain fast (p95 < 500ms) even under load
+- Proves Token Bucket rate limiting protects MongoDB from overload
+
+**Benefits:**
+- ✅ Validates rate limiting policies work as designed
+- ✅ Confirms system stability under extreme load
+- ✅ Demonstrates graceful degradation (429 responses, not crashes)
+- ✅ Industry-standard k6 tool with Docker integration
 
 ---
 
-### 🔜 P4 - Observability & Testing
+### 🔄 P4 - Observability & Testing (In Progress)
 
 **Goal:** Production monitoring and quality assurance
 
 #### a) Health Checks
-- Liveness probe: `/health/live` (is API running?)
-- Readiness probe: `/health/ready` (is MongoDB connected?)
-- Integrate with Kubernetes/Docker health checks
+- [x] Basic health endpoint: `/health` (returns status + timestamp)
+- [ ] Liveness probe: `/health/live` (is API running?)
+- [ ] Readiness probe: `/health/ready` (is MongoDB connected?)
+- [ ] Integrate with Kubernetes/Docker health checks
 
 #### b) Telemetry & Monitoring
 **OpenTelemetry Integration:**
@@ -207,9 +265,17 @@ A production-ready REST API service for reversing words(Assuming that words are 
 
 ---
 
-## Future Enhancements (P5+)
+## 🔜 Future Enhancements (P5+)
 
 - **User Profile Service** - Full user management with registration/login and secret management
+- **Horizontal Scaling** - Multiple API instances behind load balancer (Nginx/Azure Load Balancer)
+- **Role-Based Authorization** - Enforce `[Authorize(Roles = "Admin")]` for sensitive endpoints
+- **Distributed Caching** - Redis for cache synchronization across instances
+- **Distributed Rate Limiting** - Redis-backed rate limiting for multi-instance deployments
+- **Data Archival & Cold Storage** - Move old, unqueried pairings to cold storage (Azure Blob/S3)
+  - Archive records older than 90 days with no access
+  - Keep hot data in MongoDB for fast queries
+  - Implement tiered storage strategy (hot/warm/cold)
 - **Analytics Dashboard** - Most reversed words, usage statistics
 - **Webhook Support** - Notify external systems on new reversals
 - **GraphQL API** - Alternative to REST for flexible queries
@@ -249,6 +315,19 @@ A production-ready REST API service for reversing words(Assuming that words are 
 ---
 
 ## API Endpoints
+
+### 0. GET `/health`
+Simple health check for monitoring and orchestration.
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "timestamp": "2025-11-27T10:30:00Z"
+}
+```
+
+**Use Cases:** Docker health checks, Kubernetes liveness probes, uptime monitoring
 
 ### 1. POST `/api/reverse`
 Reverses all words in a sentence.
@@ -333,4 +412,4 @@ Retrieve all request/response pairs (sorted by newest first).
 
 ---
 
-*Last Updated: November 26, 2025*
+*Last Updated: November 27, 2025*
